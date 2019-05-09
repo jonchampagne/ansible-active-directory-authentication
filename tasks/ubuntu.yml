@@ -86,6 +86,23 @@
     line: "{{ ansible_default_ipv4.address }} {{ ad_hostname }} {{ ad_hostname }}.{{ ad_realm_name }}"
   become: true
 
+- name: Ensure the nobody group exists
+  group:
+    name: nobody
+    state: present
+  become: true
+
+- name: Check if guest group correctly mapped
+  command: sudo net groupmap list sid=S-1-5-32-546
+  register: mapping
+  become: true
+  ignore_errors: true
+
+- name: Map the nobody group to the AD Guest group
+  command: net -s /dev/null groupmap add sid=S-1-5-32-546 unixgroup=nobody type=builtin
+  become: true
+  when: mapping.rc == 255
+
 - name: Restart services
   service:
     state: restarted
@@ -117,12 +134,17 @@
   shell: "net ads join -k"
   become: true
 
+- name: Check if sshd_config exists
+  stat:
+    path: /etc/ssh/sshd_config
+  register: ssh
+
 - name: Enable SSH password authentication
   lineinfile:
     dest: /etc/ssh/sshd_config
     regexp: '^PasswordAuthentication'
     line: 'PasswordAuthentication yes'
-  register: ssh_conf
+  when: ssh.stat.exists == true
 
 - name: Restart SSHD
   service:
