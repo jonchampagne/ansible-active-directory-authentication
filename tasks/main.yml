@@ -1,2 +1,4 @@
 ---
-# tasks file for active-directory-authentication
+- name: Enable AD on Ubuntu
+  import_tasks: ubuntu.yml
+  #when: ansible_facts['os_family']|lower == 'ubuntu'

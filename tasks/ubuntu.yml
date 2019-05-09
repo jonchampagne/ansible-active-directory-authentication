@@ -1,0 +1,131 @@
+---
+- name: Set correct DNS server
+  import_role:
+    name: oefenweb.dns
+  vars:
+    dns_domain: "{{ ad_domain }}"
+    dns_nameservers: ["{{ ad_dns_primary }}","{{ ad_dns_secondary }}"]
+  
+- name: Install required packages
+  apt:
+    name: "{{ packages }}"
+  vars:
+    packages:
+    - krb5-user
+    - samba
+    - sssd
+    - chrony
+  become: true
+
+- name: Set the primary NTP server
+  lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: '^\s*server\s'
+    line: "server {{ ad_ntp_server }}"
+  become: true
+
+# These match any line starting with foo, ignoring whitespace before foo on the line.
+- name: Set samba configuration
+  lineinfile:
+    dest: /etc/samba/smb.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    insertafter: "{{ item.insertafter }}"
+  become: true
+  with_items:
+  - { regexp: '^\s*workgroup\s*=\s*', line: "workgroup = {{ ad_workgroup }}", insertafter: '\[global\]' }
+  - { regexp: '^\s*client signing\s*=\s*', line: "client signing = yes", insertafter: '^\s*workgroup\s*=\s*'}
+  - { regexp: '^\s*client use spnego\s*=\s*', line: 'client use spnego = yes', insertafter: '^\s*client signing\s*=\s*'}
+  - { regexp: '^\s*kerberos method\s*=\s*', line: 'kerberos method = secrets and keytab', insertafter: '^\s*client use spnego\s*=\s*'}
+  - { regexp: '^\s*realm\s*=\s*', line: "realm = {{ ad_realm_name }}", insertafter: '^\s*kerberos method\s*=\s*'}
+  - { regexp: '^\s*security\s*=\s*', line: "security = ads", insertafter: '^\s*realm\s*=\s*'}
+
+- name: Create SSSD conf file
+  copy:
+    dest: "/etc/sssd/sssd.conf"
+    content: |
+      [sssd]
+      services = nss, pam
+      config_file_version = 2
+      domains = {{ ad_realm_name }}
+
+      [domain/{{ ad_realm_name }}]
+      id_provider = ad
+      access_provider = ad
+
+      # Use this if users are being logged in at /.
+      # This example specifies /home/DOMAIN-FQDN/user as $HOME.  Use with pam_mkhomedir.so
+      override_homedir = /home/%d/%u
+
+      # Uncomment if the client machine hostname doesn't match the computer object on the DC.
+      # ad_hostname = mymachine.myubuntu.example.com
+
+      # Uncomment if DNS SRV resolution is not working
+      # ad_server = dc.mydomain.example.com
+
+      # Uncomment if the AD domain is named differently than the Samba domain
+      # ad_domain = MYUBUNTU.EXAMPLE.COM
+
+      # Enumeration is discouraged for performance reasons.
+      # enumerate = true
+  become: true
+
+- name: Set permissions on SSSD conf
+  file:
+    path: "/etc/sssd/sssd.conf"
+    mode: 0600
+    owner: 'root'
+    group: 'root'
+  become: true
+
+- name: Add FQDN to hosts file
+  lineinfile:
+    dest: '/etc/hosts'
+    regexp: "^{{ ansible_default_ipv4.address }}"
+    line: "{{ ansible_default_ipv4.address }} {{ ad_hostname }} {{ ad_hostname }}.{{ ad_realm_name }}"
+  become: true
+
+- name: Restart services
+  service:
+    state: restarted
+    enabled: true
+    name: "{{ item }}"
+  become: true
+  with_items:
+  - "chrony"
+  - "smbd"
+  - "nmbd"
+
+# Apparently there's a problem in the documentation. Some things are out of order.
+# Implementing this seems to have worked. 
+# https://bugs.launchpad.net/serverguide/+bug/1586967
+- name: Obtain a Kerberos ticket
+  shell: "echo {{ ad_password }} | kinit {{ ad_user }}"
+  register: kinit
+  become: true
+
+- name: Enable creation of user home directories on first log in
+  lineinfile:
+    dest: /etc/pam.d/common-session
+    regexp: '^session\s*required\s*pam_mkhomedir.so'
+    line: "session    required    pam_mkhomedir.so skel=/etc/skel/ umask=0022"
+    insertafter: '^session\s*required\s*pam_unix.so'
+  become: true
+
+- name: Join the domain
+  shell: "net ads join -k"
+  become: true
+
+- name: Enable SSH password authentication
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^PasswordAuthentication'
+    line: 'PasswordAuthentication yes'
+  register: ssh_conf
+
+- name: Start the SSSD service
+  service:
+    state: restarted
+    enabled: true
+    name: "sssd"
+  become: true

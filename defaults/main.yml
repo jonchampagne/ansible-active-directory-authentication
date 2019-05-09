@@ -1,2 +1,12 @@
 ---
-# defaults file for active-directory-authentication
+ad_workgroup: WORKGROUP
+ad_domain: 'EXAMPLE.COM'
+ad_hostname: example
+ad_realm_name: "{{ ad_domain }}"
+ad_domain_controller: "controller.{{ ad_domain }}"
+ad_dns_domain: "{{ domain }}"
+ad_ntp_server: "{{ domain_controller }}"
+ad_user: "Administrator@{{ domain }}"
+ad_password: "Secret55"
+ad_dns_primary: 127.0.0.1
+ad_dns_secondary: 127.0.1.1

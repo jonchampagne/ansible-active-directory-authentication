@@ -1,0 +1,12 @@
+all:
+  hosts:
+    packstack:
+      ansible_host: 192.168.0.224
+    skyfactory4: 
+      ansible_host: 192.168.0.225
+    ad-logon-test:
+      ansible_host: 192.168.0.31
+    ad-test2:
+      ansible_host: 192.168.0.32
+    test-box:
+      ansible_host: 192.168.0.215
