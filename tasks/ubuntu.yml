@@ -45,7 +45,7 @@
     dest: "/etc/sssd/sssd.conf"
     content: |
       [sssd]
-      services = nss, pam
+      services = nss, pam, sudo
       config_file_version = 2
       domains = {{ ad_realm_name }}
 
@@ -123,6 +123,13 @@
     regexp: '^PasswordAuthentication'
     line: 'PasswordAuthentication yes'
   register: ssh_conf
+
+- name: Restart SSHD
+  service:
+    state: restarted
+    enabled: true
+    name: sshd
+  when: ssh_conf.changed == true
 
 - name: Start the SSSD service
   service:
