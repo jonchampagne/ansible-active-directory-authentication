@@ -68,7 +68,6 @@
 
       # Enumeration is discouraged for performance reasons.
       # enumerate = true
-      default_shell = /bin/bash
   become: true
 
 - name: Set permissions on SSSD conf
@@ -145,6 +144,7 @@
     regexp: '^PasswordAuthentication'
     line: 'PasswordAuthentication yes'
   when: ssh.stat.exists == true
+  register: ssh_conf
 
 - name: Restart SSHD
   service:
