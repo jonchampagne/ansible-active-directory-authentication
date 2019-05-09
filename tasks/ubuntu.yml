@@ -68,6 +68,7 @@
 
       # Enumeration is discouraged for performance reasons.
       # enumerate = true
+      default_shell = /bin/bash
   become: true
 
 - name: Set permissions on SSSD conf
