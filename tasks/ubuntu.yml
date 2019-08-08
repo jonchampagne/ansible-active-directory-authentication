@@ -52,6 +52,7 @@
       [domain/{{ ad_realm_name }}]
       id_provider = ad
       access_provider = ad
+      override_shell = /bin/bash
 
       # Use this if users are being logged in at /.
       # This example specifies /home/DOMAIN-FQDN/user as $HOME.  Use with pam_mkhomedir.so
